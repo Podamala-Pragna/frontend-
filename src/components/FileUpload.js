@@ -1,60 +1,68 @@
-import React, { useState } from "react";
-import axios from "axios";
-import "../App.css";// make a dedicated CSS file
+import React, { useRef, useState } from "react";
+import { uploadLog } from "../api";
 
-const FileUpload = ({ onUploaded }) => {
-  const [file, setFile] = useState(null);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState(false);
+export default function FileUpload({ onUploaded, onError }) {
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [fileName, setFileName] = useState("");
 
-  const token = localStorage.getItem("access");
-  const API_URL = "http://127.0.0.1:8000/api";
+  const onSelect = (e) => {
+    const f = e.target.files?.[0];
+    setFileName(f ? f.name : "");
+  };
 
-  const handleUpload = async () => {
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    const file = inputRef.current?.files?.[0];
     if (!file) {
-      setMessage("Please select a file first");
-      setError(true);
+      onError?.("Please choose a file first.");
+      return;
+    }
+    if (!/\.(txt|csv)$/i.test(file.name)) {
+      onError?.("Only .txt or .csv allowed.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      onError?.("Max 5MB allowed.");
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      await axios.post(`${API_URL}/upload/`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      setMessage("Upload successful!");
-      setError(false);
-      if (onUploaded) onUploaded();
+      setBusy(true);
+      await uploadLog(file);
+      onUploaded?.();
+      // reset input
+      if (inputRef.current) inputRef.current.value = "";
+      setFileName("");
     } catch (err) {
-      setMessage(err.response?.data?.error || "Upload failed");
-      setError(true);
+      onError?.(err?.message || "Upload failed");
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-box upload-box">
-        <h2>Automated Log File Analyzer</h2>
-        <input
-          type="file"
-          accept=".txt,.csv"
-          onChange={e => setFile(e.target.files[0])}
-        />
-        <button onClick={handleUpload}>Upload & analyze</button>
+    <form className="uploader" onSubmit={onSubmit}>
+      <label className="drop">
+        <span className="title">Upload Log File</span>
+        <span className="hint">Accepted: .txt or .csv (≤5MB)</span>
 
-        {message && (
-          <div className={error ? "error" : "success"}>
-            {message}
-          </div>
-        )}
-      </div>
-    </div>
+        <input ref={inputRef} type="file" onChange={onSelect} hidden />
+
+        <div className="actions">
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => inputRef.current?.click()}
+          >
+            {fileName || "Choose file"}
+          </button>
+
+          <button type="submit" className="btn" disabled={busy}>
+            {busy ? "Uploading..." : "Upload"}
+          </button>
+        </div>
+      </label>
+    </form>
   );
-};
-
-export default FileUpload;
+}

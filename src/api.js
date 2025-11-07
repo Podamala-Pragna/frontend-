@@ -1,16 +1,21 @@
-import axios from "axios";
+const BASE_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:5000";
 
-const api = axios.create({
-  baseURL: "http://127.0.0.1:8000/api/",
-});
+export async function uploadLog(file) {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${BASE_URL}/upload`, { method: "POST", body: form });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
 
-// Attach JWT token automatically
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("access");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+export async function fetchSummary() {
+  const res = await fetch(`${BASE_URL}/summary`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json(); // { errors, warnings, infos, hasError }
+}
 
-export default api;
+export async function fetchRecentLogs() {
+  const res = await fetch(`${BASE_URL}/logs`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json(); // [{ timestamp, severity, message }]
+}
